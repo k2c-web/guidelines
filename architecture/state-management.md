@@ -1,225 +1,419 @@
 ---
-title: "23 — State Management"
-description: "Documentation architecturale complète pour structurer, comprendre et gouverner la gestion d’état dans une application React/Next.js moderne."
-tags: ["architecture", "state-management", "react", "nextjs", "zustand", "react-query"]
-updated: "2026-02-17"
+title: "State Management"
+description: "Principes d’architecture pour gérer l’état dans une application React/Next : server state, client state, patterns, boundaries et décisions."
+updated_at: "2026-03-08"
+tags:
+  - Architecture
+  - State Management
+  - React
+  - Next.js
+  - Patterns
 ---
 
-# 23 — State Management
+# State Management
 
-Documentation architecturale complète pour comprendre, structurer et gouverner la gestion d’état dans une application React/Next.js moderne.
+Ce document présente les **principes d’architecture** pour gérer l’état dans une application React/Next moderne.  
+Il ne traite pas des bibliothèques (Zustand, Jotai, Redux Toolkit, TanStack Query) — elles sont documentées dans `/libs`.
 
----
+Objectif :  
+👉 comprendre **comment penser** l’état, **où le placer**, **comment le découper**, et **comment éviter la complexité inutile**.
 
-## 📚 Sommaire
+## Sommaire
 
-- [1. Résumé exécutif](#1-résumé-exécutif)
-- [2. Les quatre types d’état](#2-les-quatre-types-détat)
-  - [2.1 Local UI state](#21-local-ui-state)
-  - [2.2 Derived state](#22-derived-state)
-  - [2.3 Server state](#23-server-state)
-  - [2.4 Global app state](#24-global-app-state)
-- [3. Principes clés](#3-principes-clés)
-- [4. Outils modernes](#4-outils-modernes)
-- [5. State management dans Next.js](#5-state-management-dans-nextjs)
-- [6. Anti‑patterns](#6-anti‑patterns)
-- [7. Schéma conceptuel](#7-schéma-conceptuel-texte)
-- [8. Liens internes](#8-liens-internes)
-- [9. Réponses d’entretien](#9-réponses-dentretien-version-courte)
-- [10. Conclusion](#10-conclusion)
-
----
-
-## 1. Résumé exécutif
-
-Le state management est un **problème d’architecture**, pas un choix de librairie.
-
-Il consiste à organiser :
-
-- la circulation des données  
-- la propriété des données  
-- la mutation des données  
-
-Un architecte cherche à :
-
-- **minimiser le global**  
-- **séparer les responsabilités**  
-- **optimiser les flux**  
+1. [Principes fondamentaux](#1-principes-fondamentaux)
+2. [Server state vs Client state](#2-server-state-vs-client-state)
+3. [Types d’état](#3-types-détat)
+4. [Patterns d’architecture](#4-patterns-darchitecture)
+5. [Boundaries & découpage](#5-boundaries--découpage)
+6. [Comment choisir un outil](#6-comment-choisir-un-outil)
+7. [Erreurs fréquentes](#7-erreurs-fréquentes)
 
 ---
 
-## 2. Les quatre types d’état
+# 1. Principes fondamentaux
 
-### 2.1 Local UI state
+### ✔️ 1.1. L’état doit être **colocalisé**
 
-État éphémère, lié à un composant.
+Un état doit vivre **au plus près** du composant qui l’utilise.
 
-- `useState`, `useReducer`
-- Exemples : modals, inputs, toggles
-- Toujours localisé
+### ✔️ 1.2. L’état global est une **exception**
 
----
+Un store global doit être justifié par :
 
-### 2.2 Derived state
+- un besoin de partage large
+- un besoin de persistance
+- un besoin de synchronisation
 
-Valeurs calculées à partir d’autres états.
+### ✔️ 1.3. L’état doit être **minimal**
 
-- Jamais stocké
-- Toujours dérivé via fonctions pures
+Ne stocker que ce qui est nécessaire.  
+Tout le reste doit être **dérivé**.
 
----
+### ✔️ 1.4. L’état doit être **prévisible**
 
-### 2.3 Server state
+- pas de mutation silencieuse
+- pas d’effets cachés
+- pas de dépendances implicites
 
-Données provenant d’une API.
+### ✔️ 1.5. L’état doit être **stable**
 
-- Externalisé via **React Query** ou **RSC**
-- Synchronisation automatique
-- Cache, retry, pagination
-
----
-
-### 2.4 Global app state
-
-État transversal minimal.
-
-- Auth, thème, préférences
-- Zustand ou Redux Toolkit
+Pour éviter les re-renders inutiles.
 
 ---
 
-## 3. Principes clés
+# 2. Server state vs Client state
 
-### 3.1 Minimiser le global state  
-Plus un état est global, plus il est dangereux.
+## 2.1. Server state
 
-### 3.2 Séparer UI state et server state  
-Erreur classique : stocker le server state dans un store global.
+Données provenant du serveur :
 
-### 3.3 Choisir l’outil adapté
+- API
+- base de données
+- CMS
+- fichiers distants
 
-| Type d’état | Outil recommandé |
-|-------------|------------------|
-| Local UI | useState, useReducer |
-| Derived | Fonctions pures |
-| Server | React Query / RSC |
-| Global | Zustand / Redux Toolkit |
+Caractéristiques :
 
-### 3.4 Réduire la surface de mutation  
-Limiter les endroits où l’état peut changer.
+- source de vérité = serveur
+- doit être synchronisé
+- peut être mis en cache
+- peut être revalidé
 
----
-
-## 4. Outils modernes
-
-### 4.1 React Query  
-Gestion avancée du server state.
-
-- Cache intelligent  
-- Revalidation  
-- Pagination  
-- Annulation  
-
-### 4.2 Zustand  
-Store léger et performant.
-
-- API simple  
-- Sélecteurs précis  
-- Middlewares utiles  
-
-### 4.3 Redux Toolkit  
-Pour les très gros projets.
-
-- Standardisation  
-- Immutabilité garantie  
-- Outils entreprise  
-
-### 4.4 Context API  
-À utiliser pour les données stables.
-
-- Thème  
-- Localisation  
-- Config statique  
+👉 Dans Next.js App Router :  
+**le server state doit être géré côté serveur** (RSC + fetch + revalidate).
 
 ---
 
-## 5. State management dans Next.js
+## 2.2. Client state
 
-### 5.1 React Server Components  
-Déplacement d’une partie du state management côté serveur.
+Données propres à l’UI :
 
-- Moins de client state  
-- Moins de stores globaux  
-- Meilleure performance  
+- modales
+- formulaires
+- filtres locaux
+- sélection d’éléments
+- état temporaire
 
-### 5.2 Server Actions  
-Mutations côté serveur sans gestion client complexe.
+Caractéristiques :
 
-### 5.3 Cache et revalidation  
-Mécanismes clés :
+- ne vient pas du serveur
+- ne doit pas être synchronisé
+- ne doit pas être global par défaut
 
-- `cache()`  
-- `revalidateTag()`  
-- `revalidatePath()`  
-
----
-
-## 6. Anti‑patterns
-
-- Stocker du server state dans Redux/Zustand  
-- Utiliser Context pour des données qui changent souvent  
-- Avoir un store global tentaculaire  
-- Mélanger UI state et business state  
-- Recalculer du derived state dans un store  
+👉 Le client state doit être **colocalisé**.
 
 ---
 
-## 7. Schéma conceptuel (texte)
+# 3. Types d’état
 
-```
-[Server] → React Query / RSC → [Server State]
+## 3.1. UI State
 
-[UI Components] → useState/useReducer → [Local UI State]
+- modales
+- menus
+- hover
+- focus
+- stepper
 
-[Global Store] → Zustand/Redux → [Global App State]
-
-[Derived State] = compute(Local + Global + Server)
-```
-
----
-
-## 8. Liens internes
-
-- Voir aussi : **21 — Architecture moderne**  
-- Voir aussi : **24 — Performance**  
-- Voir aussi : **25 — Boundaries & Domain**  
+→ local, simple, colocalisé.
 
 ---
 
-## 9. Réponses d’entretien (version courte)
+## 3.2. Form State
 
-### 9.1 Réponse synthétique  
-Le state management est un choix d’architecture.  
-Je distingue quatre types d’état : local UI, derived, server et global app state.  
-Chaque type a son outil optimal.
+- inputs
+- validation
+- erreurs
 
-### 9.2 Points clés à dire
-
-- Le server state ne doit jamais être dans un store global.  
-- Le global state doit être minimal.  
-- React Query gère le server state, Zustand gère le global léger.  
-- Next.js déplace une partie du state management côté serveur.  
-- Mon rôle est de cartographier les flux et réduire la surface de mutation.  
+→ local, souvent géré par React ou une lib dédiée.
 
 ---
 
-## 10. Conclusion
+## 3.3. Derived State
 
-Une architecture de state management réussie repose sur :
+- computed values
+- filtres
+- transformations
 
-- la clarté des responsabilités  
-- la minimisation du global  
-- l’utilisation judicieuse des outils modernes  
+→ ne doit **jamais** être stocké.  
+→ toujours dérivé.
 
-Cette page sert de référence pour concevoir, auditer et expliquer une stratégie de gestion d’état dans un environnement React/Next.js.
+---
 
+## 3.4. Server State
+
+- données fetchées
+- données paginées
+- données invalidables
+
+→ géré côté serveur (RSC) ou via une lib spécialisée.
+
+---
+
+## 3.5. Global State
+
+- auth
+- user preferences
+- panier
+- thème
+
+→ doit être rare et justifié.
+
+---
+
+# 4. Patterns d’architecture
+
+## 4.1. Lifting State Up
+
+Remonter l’état au parent commun minimal.
+
+---
+
+## 4.2. Colocation
+
+Placer l’état **dans le composant qui en a besoin**.
+
+---
+
+## 4.3. Derived State
+
+Ne jamais stocker :
+
+- un filtre
+- un tri
+- une transformation
+- une valeur calculée
+
+Toujours dériver.
+
+---
+
+## 4.4. State Machines (optionnel)
+
+Pour les flows complexes :
+
+- onboarding
+- checkout
+- formulaires multi‑étapes
+
+---
+
+## 4.5. Event-driven state
+
+Utiliser des événements plutôt que des mutations directes.
+
+---
+
+## 4.6. Server-first architecture (Next.js)
+
+Dans App Router :
+
+- fetch côté serveur
+- revalidate
+- pas de client fetch inutile
+- pas de state global pour du server state
+
+---
+
+# 5. Boundaries & découpage
+
+Les _state boundaries_ définissent **où commence et où s’arrête un état**, et comment découper l’application en zones cohérentes, indépendantes et prévisibles.
+
+Elles permettent d’éviter :
+
+- les stores trop gros
+- les context omniprésents
+- les re-renders en cascade
+- les dépendances implicites
+- la confusion entre server state et client state
+
+Elles sont essentielles pour une architecture React/Next moderne.
+
+---
+
+## 5.1. UI Boundary — l’état local
+
+L’état doit rester **dans le composant qui en a besoin**.
+
+Exemples :
+
+- modales
+- menus
+- hover/focus
+- formulaires
+- stepper
+
+Outils :
+
+- `useState`
+- `useReducer`
+- Jotai (atoms locaux)
+
+---
+
+## 5.2. Data Boundary — le server state
+
+Le server state doit rester **côté serveur** ou dans un outil spécialisé.
+
+Exemples :
+
+- données fetchées
+- données paginées
+- données invalidables
+- données synchronisées
+
+Outils :
+
+- RSC + `fetch`
+- `revalidate`
+- React Query (client hydration)
+
+---
+
+## 5.3. Context Boundary — le partage léger
+
+Un contexte doit être :
+
+- petit
+- ciblé
+- stable
+
+Exemples :
+
+- thème
+- locale
+- session utilisateur (si stable)
+
+Outils :
+
+- React Context
+- Zustand (si besoin de global léger)
+
+---
+
+## 5.4. Store Boundary — la logique métier globale
+
+Un store global doit être :
+
+- découpé
+- modulaire
+- minimal
+- prévisible
+
+Exemples :
+
+- panier
+- préférences utilisateur
+- logique métier complexe
+- interactions globales
+
+Outils :
+
+- Zustand (slices)
+- Redux Toolkit (slices)
+- Jotai (atoms modulaires)
+
+---
+
+## 5.5. Boundary Map — résumé visuel
+
+| Type d’état         | Boundary         | Outil recommandé                |
+| ------------------- | ---------------- | ------------------------------- |
+| UI state            | UI Boundary      | useState / useReducer           |
+| Form state          | UI Boundary      | React Hook Form                 |
+| Derived state       | UI Boundary      | derived atoms (Jotai)           |
+| Server state        | Data Boundary    | RSC / React Query               |
+| Global client state | Store Boundary   | Zustand / Jotai / Redux Toolkit |
+| Partage léger       | Context Boundary | React Context                   |
+
+---
+
+## 5.6. Règle d’or
+
+> **Un état doit vivre dans la boundary la plus basse possible.**
+
+Si tu dois remonter l’état, fais-le **par nécessité**, pas par réflexe.
+
+---
+
+## 5.7. Anti-patterns liés aux boundaries
+
+- tout mettre dans un store global
+- utiliser Context pour tout
+- stocker du server state dans Zustand
+- fetch côté client alors que RSC suffit
+- créer un store par réflexe
+- mélanger server state et client state
+- ne pas découper les slices
+- mettre des objets complexes dans un store global
+
+---
+
+# 6. Comment choisir un outil
+
+## 6.1. Pas d’outil
+
+→ UI state simple  
+→ formulaires simples  
+→ derived state
+
+---
+
+## 6.2. Context
+
+→ partage léger  
+→ pas de logique complexe  
+→ pas de fréquences élevées de mise à jour
+
+---
+
+## 6.3. Zustand / Jotai
+
+→ client state global  
+→ logique métier  
+→ stores modulaires  
+→ interactions rapides
+
+---
+
+## 6.4. TanStack Query
+
+→ server state  
+→ caching  
+→ invalidation  
+→ pagination
+
+---
+
+## 6.5. Redux Toolkit
+
+→ flows complexes  
+→ équipes nombreuses  
+→ besoin de tooling
+
+---
+
+# 7. Erreurs fréquentes
+
+- tout mettre dans un store global
+- utiliser Context pour tout
+- stocker du derived state
+- fetch côté client alors que RSC suffit
+- mélanger server state et client state
+- créer un store par réflexe
+- ne pas découper les boundaries
+- muter l’état au lieu de le recréer
+
+---
+
+# 🎯 Conclusion
+
+Le state management est un sujet **d’architecture**, pas un sujet d’outils.  
+Les décisions doivent être guidées par :
+
+- la nature de l’état
+- sa durée de vie
+- sa source de vérité
+- son périmètre
+- sa fréquence de mise à jour
+
+Les bibliothèques viennent **après** la réflexion architecturale.
